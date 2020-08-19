@@ -2,7 +2,7 @@
 
 ## Roychowdhury, 2006. Earnings management through real activities manipulation. Journal of Accounting and Economics (42) pp. 350-370
 
-See [replicate roychowdhury.sas](replicate roychowdhury.sas) for SAS code to replicate tables 1 and 2.
+See (replicate roychowdhury.sas)[replicate roychowdhury.sas] for SAS code to replicate tables 1 and 2.
 
 > Warning: you can use my code, but my findings are not in line with the paper's results. I am very interested in hearing about any possible mistakes I may have made.
 
