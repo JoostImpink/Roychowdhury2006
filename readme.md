@@ -20,3 +20,9 @@ The descriptive statistics (for size variables, and the dependent variables) on 
 ### Table 2
 
 In table 2, the dependent variables (cash flow from operations, discretionary expenses, production costs and accruals) are regresses on some factors like sales, change in sales, PPE, etc. Some of my coefficients for models 1-3 are similar, but my standard deviations are much higher (meaning I mostly find no significant variables). My estimates for model 4 (accruals) are very different.
+
+### Table 4
+
+Table 4 shows 'suspect' years (where there is a small profit), and associations with cash flows, discretionary expenses and production costs. The paper tabulates the results of Fama-McBeth regressions (yearly regressions).
+
+When I run a pooled regressions, I get similar coefficients and similar statistical significance. When I run yearly regressions, I get similar coefficients, but higher standard errors (meaning no significant results).
