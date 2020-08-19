@@ -16,7 +16,7 @@ period 1987–2001, including 36 industries and 4,252 individual firms."
 
 Issues replcating
 -----------------
-- The sample size is much larger (70,015 observations vs 21,758 in the paper)
+- The sample size is much larger (64,257 observations vs 21,758 in the paper)
 - Coefficients for models 1-3 in table 2 are (somewhat) similar (but much less significant compared to paper) 
 - Coefficient for model 4 (accruals) in table 2 are very different
 
@@ -30,7 +30,7 @@ rsubmit;
 /* Key variables */
 proc sql;
 	create table a_comp as
-	select gvkey, datadate, fyear, sich, sale, at, xsga, xrd, xad, cogs, invt, oancf, ib, ppegt, prcc_f * csho as mcap
+	select gvkey, datadate, fyear, sich, sale, at, xsga, xrd, xad, cogs, invt, oancf, ib, ppegt, prcc_f * csho as mcap, exchg
 	from comp.funda 
 	where 1987 <= fyear <= 2001		
 	and indfmt='INDL' and datafmt='STD' and popsrc='D' and consol='C'; 
@@ -110,31 +110,39 @@ filename mwins url 'http://www.wrds.us/winsorize.sas';
 %include mwins;
 %winsor(dsetin=c_comp2, dsetout=c_comp2_wins, vars=&keyVars, type=winsor, pctl=1 99);
 
-/* keep 15 obs per industry-year (64,257 obs remain)*/
+/* not in paper: keep obs on main exchanges
+	reduces sample size from 65,794 to 37,768
+*/
+data d_main;
+set c_comp2_wins;
+if exchg in (11,12,14);
+run;
+
+/* keep 15 obs per industry-year (35,342 obs remain)*/
 proc sql;
 	create table d_15obs as
-	select * from c_comp2_wins
+	select * from d_main
 	group by sic2, fyear
 	/* at least 15 obs in each sic2-fyear*/
 	having count(*) >= 15;
 quit;
 
-/* 10,729 unique gvkeys vs 4,252 mentioned in the paper */
+
+/* 5,245 unique gvkeys vs 4,252 mentioned in the paper */
 proc sql; create table gvkey as select distinct gvkey from d_15obs; quit;
 
-/* 50 unique industries vs 36 mentioned in the paper */
+/* 38 unique industries vs 36 mentioned in the paper */
 proc sql; create table sic2 as select distinct sic2 from d_15obs; quit;
 
-/* 637 unique industry-years vs 416 mentioned in the paper (table 2 footnote) */
+/* 474 unique industry-years vs 416 mentioned in the paper (table 2 footnote) */
 proc sql; create table sic2_yrs as select distinct sic2, fyear from d_15obs; quit;
 
-/* some descriptives 
-	Medican market cap: 64.3 vs 137.3 inpaper
-	Median assets: 78.3 vs 137.3 in paper
-	Median sales: 84.2 vs 221.0 in paper
-	Median CFO: 0.060 vs 0.082 in paper
-	Median Production costs: 0.743 vs 0.788 in paper
-	=> Roychowdhury sample is smaller in size; firms are larger, higher cash flows, etc
+/* some descriptives, these are similar as those in paper 
+	Median market cap: 154.6 vs 137.3 inpaper
+	Median assets: 150.8 vs 137.3 in paper
+	Median sales: 166.4 vs 221.0 in paper
+	Median CFO: 0.088 vs 0.082 in paper
+	Median Production costs: 0.750 vs 0.788 in paper	
 */
 proc means data=d_15obs n mean median;  var mcap at sale oancf ib cfo_at disexp_at prod_at accruals_at; run;
 
@@ -159,8 +167,8 @@ output out=f_fitted1  p=yhat r=yresid ;
 by fyear sic2;
 run;
 
-/* 	sale_at: 0.0516600 vs 0.0516 in paper, bot not significant (paper: t-value 12.8)
-	sale_ch_at: -0.0236289 vs 0.0173 in paper
+/* 	sale_at: 0.0485591 vs 0.0516 in paper, bot not significant (paper: t-value 12.8)
+	sale_ch_at: 0.0081310 vs 0.0173 in paper
 */
 proc means data=e_parms_cfo n mean stddev;
   var Intercept one_at sale_at sale_ch_at _RMSE_; 
@@ -175,7 +183,7 @@ output out=f_fitted2  p=yhat r=yresid ;
 by fyear sic2;
 run;
 
-/* 	sale_lag_at is 0.1470995, vs 0.1596 in paper, but not significant (paper: t-value 18)
+/* 	sale_lag_at is 0.1355628, vs 0.1596 in paper, but not significant (paper: t-value 18)
 	by the way: not clear if there is a typo in the paper, St listed twice, assuming second one should be St-1
 */
 proc means data=e_parms_disexp (where = (_EDF_ >= 12) ) n mean stddev;
@@ -191,9 +199,9 @@ output out=f_fitted3  p=yhat r=yresid ;
 by fyear sic2;
 run;
 
-/*	sale_at: 0.7722022 vs 0.7874 in paper, t-value about 6 vs 109 in paper
-	sale_ch_at: 0.0234565 vs 0.0404 in paper
-	sale_ch2_at: -0.0203854 vs -0.0147 in paper*/
+/*	sale_at: 0.7986351 vs 0.7874 in paper, t-value about 6 vs 109 in paper
+	sale_ch_at: -0.0204092 vs 0.0404 in paper
+	sale_ch2_at: -0.0471120 vs -0.0147 in paper*/
 
 proc means data=e_parms_prod  n mean stddev;
   var Intercept one_at sale_at sale_ch_at sale_ch2_at _RMSE_; 
@@ -208,8 +216,8 @@ output out=f_fitted4  p=yhat r=yresid ;
 by fyear sic2;
 run;
 
-/* 	sale_ch_at: 0.8882800 vs 0.0490 in paper
-	ppe_at: 0.0627209 vs -0.060 in paper */
+/* 	sale_ch_at: 0.9283935 vs 0.0490 in paper
+	ppe_at: 0.1036949 vs -0.060 in paper */
 
 proc means data=e_parms_accr n mean stddev;
   var Intercept one_at sale_ch_at ppe_at _RMSE_; 
