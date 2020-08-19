@@ -14,8 +14,8 @@ Section 4.1 on page 343 describes sample selection:
 "Imposing all the data-availability requirements yields 21,758 firm-years over the
 period 1987–2001, including 36 industries and 4,252 individual firms."
 
-Issues replcating
------------------
+Issues replicating
+------------------
 - The sample size is much larger (64,257 observations vs 21,758 in the paper; I can reduce it to 37,768 when filtering on exchanges)
 - Table 2: Coefficients for models 1-3 are (somewhat) similar (but much less significant compared to paper) 
 - Table 2: Coefficient for model 4 (accruals) in table 2 are very different
