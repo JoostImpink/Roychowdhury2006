@@ -32,16 +32,17 @@ rsubmit;
 proc sql;
 	create table a_comp as
 	select gvkey, datadate, fyear, sich, sale, at, xsga, xrd, xad, cogs, invt, oancf, ib, ppegt, exchg, 
-	prcc_f * csho as mcap, calculated mcap / ceq as mtb, log(calculated mcap) as size
+	prcc_f * csho as mcap, calculated mcap / ceq as mtb, log(calculated mcap) as size, ceq / at as lev
 	from comp.funda 
-	where 1987 <= fyear <= 2001		
+	where 1987 <= fyear <= 2001 
 	and indfmt='INDL' and datafmt='STD' and popsrc='D' and consol='C'; 
 quit;
 
 /* lagged values for assets (at), sales (sale), inventory (invt), ppe (ppegt)*/
 proc sql;
 	create table b_comp as 
-	select a.*, b.at as at_lag, b.sale as sale_lag, b.invt as invt_lag, b.ppegt as ppegt_lag
+	select a.*, b.at as at_lag, b.sale as sale_lag, b.invt as invt_lag, b.ppegt as ppegt_lag,
+	a.sale / b.sale -1 as sale_gr /* percent sales growth */
 	from a_comp a, comp.funda b
 	where a.gvkey = b.gvkey and a.fyear - 1 = b.fyear 
 	and b.indfmt='INDL' and b.datafmt='STD' and b.popsrc='D' and b.consol='C'; 
@@ -66,7 +67,7 @@ proc download data=c_comp out = c_comp;run;
 endrsubmit;
 
 /* key variables to be winsorized; also used to drop observations that have a missing value for any of these */
-%let keyVars = one_at sale_ch_at sale_ch2_at sale_lag_at sale_at ppe_at accruals_at prod_at disexp_at cfo_at mcap mtb size;
+%let keyVars = one_at sale_ch_at sale_ch2_at sale_lag_at sale_at ppe_at accruals_at prod_at disexp_at cfo_at mcap mtb size lev sale_gr;
 
 /* create main variables */
 data c_comp2;
@@ -112,12 +113,12 @@ one_at = 1 / at_lag;
 /* key variables may not be missing (cmiss function counts missing values of a list of variables)*/
 if cmiss (of &keyVars) eq 0;
 
-/* main exchanges (not mentioned in paper, but brings sample size more in line with #obs in paper)*/
-if exchg in (11,12,14);
+/* dummy for main exchanges (not mentioned in paper, but brings sample size more in line with #obs in paper)*/
+exch_main = ( exchg in (11,12,14) ); 
 run;
 
 /*	winsorize */
-filename mwins url 'http://www.wrds.us/winsorize.sas';
+filename mwins url 'http://www.koopsom.com/macros/winsorize.sas';
 %include mwins;
 
 /* winsorize &keyVars */
@@ -182,10 +183,10 @@ output out=f_fitted1  p=yhat r=yresid ;
 by fyear sic2;
 run;
 
-/* 	sale_at: 0.0476839 vs 0.0516 in paper, bot not significant (paper: t-value 12.8)
-	sale_ch_at: 0.0120487 vs 0.0173 in paper
+/* 	sale_at: 0.0476839 vs 0.0516 in paper
+	sale_ch_at: -0.0161828 vs 0.0173 in paper
 */
-proc means data=e_parms_cfo n mean stddev;
+proc means data=e_parms_cfo n mean stderr;
   var Intercept one_at sale_at sale_ch_at _RMSE_; 
 run;
 
@@ -198,10 +199,10 @@ output out=f_fitted2  p=yhat r=yresid ;
 by fyear sic2;
 run;
 
-/* 	sale_lag_at is 0.1356134, vs 0.1596 in paper, but not significant (paper: t-value 18)
+/* 	sale_lag_at is 0.1506, vs 0.1596 in paper
 	by the way: not clear if there is a typo in the paper, St listed twice, assuming second one should be St-1
 */
-proc means data=e_parms_disexp  n mean stddev;
+proc means data=e_parms_disexp  n mean stderr;
   var Intercept one_at sale_lag_at _RMSE_; 
 run;
 
@@ -214,11 +215,11 @@ output out=f_fitted3  p=yhat r=yresid ;
 by fyear sic2;
 run;
 
-/*	sale_at: 0.7992878 vs 0.7874 in paper, t-value about 6 vs 109 in paper
-	sale_ch_at: -0.0203214 vs 0.0404 in paper
-	sale_ch2_at: -0.0489919 vs -0.0147 in paper*/
+/*	sale_at: 0.776 vs 0.7874 in paper
+	sale_ch_at: 0.0165265 vs 0.0404 in paper
+	sale_ch2_at: -0.0168325 vs -0.0147 in paper*/
 
-proc means data=e_parms_prod  n mean stddev;
+proc means data=e_parms_prod  n mean stderr;
   var Intercept one_at sale_at sale_ch_at sale_ch2_at _RMSE_; 
 run;
 
@@ -226,15 +227,15 @@ run;
 /* Fourth regression: accruals */
 
 proc reg data=e_main noprint edf outest=e_parms_accr; 
-model prod_at = one_at sale_ch_at ppe_at ; 
+model accruals_at = one_at sale_ch_at ppe_at ; 
 output out=f_fitted4  p=yhat r=yresid ;
 by fyear sic2;
 run;
 
-/* 	sale_ch_at: 0.9629538 vs 0.0490 in paper
-	ppe_at: 0.1092990 vs -0.060 in paper */
+/* 	sale_ch_at: 0.0537103 vs 0.0490 in paper
+	ppe_at: -0.0492712 vs -0.060 in paper */
 
-proc means data=e_parms_accr n mean stddev;
+proc means data=e_parms_accr n mean stderr;
   var Intercept one_at sale_ch_at ppe_at _RMSE_; 
 run;
 
@@ -309,10 +310,10 @@ model yresid = size mtb ni suspect_NI;
 by fyear;
 run;
 
-/* 	suspect_NI: -0.0194284 vs -0.020 in paper 
-	stdev is 0.014, so not significant (paper: t-value of 3.0)*/
+/* 	suspect_NI: -0.000045406 vs -0.020 in paper 
+	stderr is 0.0054624, so not significant (paper: t-value of 3.0)*/
 
-proc means data=g_parms_cfo n mean stddev;
+proc means data=g_parms_cfo n mean stderr;
   var Intercept size mtb ni suspect_NI _RMSE_; 
 run;
 
@@ -324,10 +325,9 @@ model yresid = size mtb ni suspect_NI;
 by fyear;
 run;
 
-/* 	suspect_NI: -0.0346076 vs -0.0591 in paper 
-	stdev is 0.0330075, so not significant (paper: t-value of 4.3)*/
+/* 	suspect_NI: -0.0702146 vs -0.0591 in paper  */
 
-proc means data=g_parms_de n mean stddev;
+proc means data=g_parms_de n mean stderr;
   var Intercept size mtb ni suspect_NI _RMSE_; 
 run;
 
@@ -340,9 +340,8 @@ model yresid = size mtb ni suspect_NI;
 by fyear;
 run;
 
-/* 	suspect_NI: 0.0354075 vs 0.0497 in paper 
-	stdev is 0.0253694, so not significant (paper: t-value of 5.0)*/
+/* 	suspect_NI: 0.0401730 vs 0.0497 in paper )*/
 
-proc means data=g_parms_prod n mean stddev;
+proc means data=g_parms_prod n mean stderr;
   var Intercept size mtb ni suspect_NI _RMSE_; 
 run;
